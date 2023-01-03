@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres
+    restart: always
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_PASSWORD: admin
+
+  api:
+    build: .
+    ports:
+      - 8080:1234
+    restart: on-failure:10
+    environment:
+      - PORT=1234
+      - DATABASE_URL=db
+    depends_on:
+      - db
