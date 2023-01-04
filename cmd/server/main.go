@@ -1,8 +1,8 @@
 package main
 
 import (
-	"go-microservice-example/pkg/api"
-	"go-microservice-example/pkg/db"
+	"bali-rent/pkg/api"
+	"bali-rent/pkg/db"
 	"log"
 )
 
