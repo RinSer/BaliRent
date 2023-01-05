@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bali-rent/pkg/db/models"
 	"net/http"
 	"os"
 	"time"
@@ -31,6 +32,8 @@ func StartAPI(pgdb *pg.DB) {
 	// Middleware
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
+	// Register route
+	e.POST("/register", a.register)
 	// Login route
 	e.POST("/login", a.login)
 	// Unauthenticated route
@@ -54,19 +57,37 @@ func (a *app) hello(c echo.Context) error {
 	return c.String(http.StatusOK, "Hello, World!")
 }
 
-// e.POST("/login", login)
-func (a *app) login(c echo.Context) error {
-	request := new(LoginRequest)
+// e.POST("/register", register)
+func (a *app) register(c echo.Context) error {
+	request := new(UserRequest)
 	c.Bind(request)
 
+	user, err := models.AddUser(a.db, &models.User{
+		Phone:   request.Phone,
+		Pwdhash: request.Password,
+	})
+
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, err)
+	}
+
+	return c.JSON(http.StatusCreated, user)
+}
+
+// e.POST("/login", login)
+func (a *app) login(c echo.Context) error {
+	request := new(UserRequest)
+	c.Bind(request)
+
+	user, err := models.GetUser(a.db, request.Phone, request.Password)
 	// Throws unauthorized error
-	if request.Phone != "+777" || request.Password != "test" {
+	if err != nil || user == nil {
 		return echo.ErrUnauthorized
 	}
 
 	// Set custom claims
 	claims := &jwtCustomClaims{
-		request.Phone,
+		user.Phone,
 		false,
 		jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 72)),

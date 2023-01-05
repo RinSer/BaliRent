@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
     when_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS phone_pwdhash ON users(phone);
+
 CREATE TYPE rent_or_sell AS ENUM ('rent', 'sell');
 CREATE TYPE property_type AS ENUM ('room', 'flat', 'house');
 
