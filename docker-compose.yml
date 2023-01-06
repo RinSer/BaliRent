@@ -17,5 +17,6 @@ services:
     environment:
       - PORT=1234
       - DATABASE_URL=db
+      - JWT_SECRET=secret-new
     depends_on:
       - db

@@ -25,6 +25,10 @@ type jwtCustomClaims struct {
 	jwt.RegisteredClaims
 }
 
+func getJwtSecret() string {
+	return os.Getenv("JWT_SECRET")
+}
+
 func StartAPI(pgdb *pg.DB) {
 	// create new app
 	a := app{pgdb}
@@ -45,7 +49,7 @@ func StartAPI(pgdb *pg.DB) {
 		NewClaimsFunc: func(c echo.Context) jwt.Claims {
 			return new(jwtCustomClaims)
 		},
-		SigningKey: []byte("secret"),
+		SigningKey: []byte(getJwtSecret()),
 	}
 	r.Use(echojwt.WithConfig(config))
 	r.GET("", a.restricted)
@@ -98,7 +102,7 @@ func (a *app) login(c echo.Context) error {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
 	// Generate encoded token and send it as response.
-	t, err := token.SignedString([]byte("secret"))
+	t, err := token.SignedString([]byte(getJwtSecret()))
 	if err != nil {
 		return err
 	}
