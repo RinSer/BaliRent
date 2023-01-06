@@ -40,8 +40,6 @@ func StartAPI(pgdb *pg.DB) {
 	e.POST("/register", a.register)
 	// Login route
 	e.POST("/login", a.login)
-	// Unauthenticated route
-	e.GET("/", a.hello)
 	// Restricted group
 	r := e.Group("/restricted")
 	// Configure middleware with the custom claims type
@@ -54,11 +52,6 @@ func StartAPI(pgdb *pg.DB) {
 	r.Use(echojwt.WithConfig(config))
 	r.GET("", a.restricted)
 	e.Logger.Fatal(e.Start(":" + os.Getenv("PORT")))
-}
-
-// e.GET("/", hello)
-func (a *app) hello(c echo.Context) error {
-	return c.String(http.StatusOK, "Hello, World!")
 }
 
 // e.POST("/register", register)
