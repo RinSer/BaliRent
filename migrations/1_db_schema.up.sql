@@ -7,23 +7,25 @@ CREATE TABLE IF NOT EXISTS users (
     when_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS phone_pwdhash ON users(phone);
-
-CREATE TYPE rent_or_sell AS ENUM ('rent', 'sell');
-CREATE TYPE property_type AS ENUM ('room', 'flat', 'house');
+CREATE UNIQUE INDEX IF NOT EXISTS users_phone ON users(phone);
+CREATE UNIQUE INDEX IF NOT EXISTS users_email ON users(email);
 
 CREATE TABLE IF NOT EXISTS properties (
     id SERIAL PRIMARY KEY,
     owner_id BIGINT REFERENCES users(id),
-    address TEXT NOT NULL,
+    latitude FLOAT NOT NULL,
+    longitude FLOAT NOT NULL,
     photos jsonb,
     description TEXT,
     price INTEGER NOT NULL,
-    property_type property_type NOT NULL,
-    rent_or_sell rent_or_sell NOT NULL,
+    property_type SMALLINT NOT NULL,
+    for_sell BOOLEAN DEFAULT FALSE,
     when_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     when_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS properties_lat ON properties(latitude);
+CREATE INDEX IF NOT EXISTS properties_long ON properties(longitude);
 
 CREATE TABLE IF NOT EXISTS bookings (
     id SERIAL PRIMARY KEY,

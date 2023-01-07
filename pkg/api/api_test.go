@@ -45,8 +45,8 @@ func TestMain(m *testing.M) {
 func TestRegister(t *testing.T) {
 	testServer := echo.New()
 	testUserRequest := UserRequest{
-		Phone:    random.New().String(5, "1234567890"),
-		Email:    "test_email",
+		Phone:    random.New().String(25, "1234567890"),
+		Email:    random.New().String(25, "1234567890"),
 		Password: "test_password",
 	}
 	testRequest, err := json.Marshal(testUserRequest)
@@ -70,8 +70,8 @@ func TestRegister(t *testing.T) {
 func TestLogin(t *testing.T) {
 	testServer := echo.New()
 	testUserRequest := UserRequest{
-		Phone:    random.New().String(5, "1234567890"),
-		Email:    "test_email",
+		Phone:    random.New().String(25, "1234567890"),
+		Email:    random.New().String(25, "1234567890"),
 		Password: "test_password",
 	}
 	testRequest, err := json.Marshal(testUserRequest)
@@ -113,8 +113,8 @@ func TestLogin(t *testing.T) {
 
 func TestUserUpdate(t *testing.T) {
 	testUserRequest := UserRequest{
-		Phone:    random.New().String(5, "1234567890"),
-		Email:    "test_email",
+		Phone:    random.New().String(25, "1234567890"),
+		Email:    random.New().String(25, "1234567890"),
 		Password: "test_password",
 	}
 	testRequest, err := json.Marshal(testUserRequest)
@@ -161,7 +161,7 @@ func TestUserUpdate(t *testing.T) {
 	// Setup restricted
 	testUserRequest = UserRequest{
 		Id:       &testUser.Id,
-		Phone:    random.New().String(5, "1234567890"),
+		Phone:    random.New().String(25, "1234567890"),
 		Email:    "new_test_email",
 		Password: "new_test_password",
 	}
