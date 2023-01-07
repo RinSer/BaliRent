@@ -20,6 +20,7 @@ type app struct {
 // jwtCustomClaims are custom claims extending default ones.
 // See https://github.com/golang-jwt/jwt for more examples
 type jwtCustomClaims struct {
+	Id    int64  `json:"id"`
 	Phone string `json:"phone"`
 	Admin bool   `json:"admin"`
 	jwt.RegisteredClaims
@@ -41,7 +42,7 @@ func StartAPI(pgdb *pg.DB) {
 	// Login route
 	e.POST("/login", a.login)
 	// Restricted group
-	r := e.Group("/restricted")
+	r := e.Group("/user")
 	// Configure middleware with the custom claims type
 	config := echojwt.Config{
 		NewClaimsFunc: func(c echo.Context) jwt.Claims {
@@ -50,7 +51,7 @@ func StartAPI(pgdb *pg.DB) {
 		SigningKey: []byte(getJwtSecret()),
 	}
 	r.Use(echojwt.WithConfig(config))
-	r.GET("", a.restricted)
+	r.POST("/update", a.updateUser)
 	e.Logger.Fatal(e.Start(":" + os.Getenv("PORT")))
 }
 
@@ -60,8 +61,10 @@ func (a *app) register(c echo.Context) error {
 	c.Bind(request)
 
 	user, err := models.AddUser(a.db, &models.User{
-		Phone:   request.Phone,
-		Pwdhash: request.Password,
+		Phone:       request.Phone,
+		Email:       request.Email,
+		Pwdhash:     request.Password,
+		WhenCreated: time.Now(),
 	})
 
 	if err != nil {
@@ -76,7 +79,7 @@ func (a *app) login(c echo.Context) error {
 	request := new(UserRequest)
 	c.Bind(request)
 
-	user, err := models.GetUser(a.db, request.Phone, request.Password)
+	user, err := models.GetUser(a.db, 0, request.Phone, request.Password)
 	// Throws unauthorized error
 	if err != nil || user == nil {
 		return echo.ErrUnauthorized
@@ -84,6 +87,7 @@ func (a *app) login(c echo.Context) error {
 
 	// Set custom claims
 	claims := &jwtCustomClaims{
+		user.Id,
 		user.Phone,
 		false,
 		jwt.RegisteredClaims{
@@ -105,9 +109,31 @@ func (a *app) login(c echo.Context) error {
 	})
 }
 
-func (a *app) restricted(c echo.Context) error {
-	user := c.Get("user").(*jwt.Token)
-	claims := user.Claims.(*jwtCustomClaims)
-	phone := claims.Phone
-	return c.String(http.StatusOK, "Your number is "+phone+"!")
+func (a *app) updateUser(c echo.Context) error {
+	authData := c.Get("user").(*jwt.Token)
+	claims := authData.Claims.(*jwtCustomClaims)
+
+	request := new(UserRequest)
+	c.Bind(request)
+
+	if request.Id == nil || *request.Id != claims.Id {
+		return echo.ErrUnauthorized
+	}
+
+	user, err := models.GetUser(a.db, *request.Id, "", request.Password)
+	if err != nil || user == nil {
+		return echo.ErrUnauthorized
+	}
+
+	user.Phone = request.Phone
+	user.Email = request.Email
+	user.Pwdhash = request.Password
+	user.WhenUpdated = time.Now()
+
+	user, err = models.UpdateUser(a.db, user)
+	if err != nil || user == nil {
+		return echo.ErrUnauthorized
+	}
+
+	return c.JSON(http.StatusOK, user)
 }

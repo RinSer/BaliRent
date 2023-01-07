@@ -20,13 +20,13 @@ import (
 
 var testApp app
 
-func getJwtMiddleware() echo.MiddlewareFunc {
+func authorizeRequest(next echo.HandlerFunc) echo.HandlerFunc {
 	return echojwt.WithConfig(echojwt.Config{
 		NewClaimsFunc: func(c echo.Context) jwt.Claims {
 			return new(jwtCustomClaims)
 		},
 		SigningKey: []byte(getJwtSecret()),
-	})
+	})(next)
 }
 
 func TestMain(m *testing.M) {
@@ -46,6 +46,7 @@ func TestRegister(t *testing.T) {
 	testServer := echo.New()
 	testUserRequest := UserRequest{
 		Phone:    random.New().String(5, "1234567890"),
+		Email:    "test_email",
 		Password: "test_password",
 	}
 	testRequest, err := json.Marshal(testUserRequest)
@@ -70,6 +71,7 @@ func TestLogin(t *testing.T) {
 	testServer := echo.New()
 	testUserRequest := UserRequest{
 		Phone:    random.New().String(5, "1234567890"),
+		Email:    "test_email",
 		Password: "test_password",
 	}
 	testRequest, err := json.Marshal(testUserRequest)
@@ -109,30 +111,33 @@ func TestLogin(t *testing.T) {
 	}
 }
 
-func TestRestricted(t *testing.T) {
-	testServer := echo.New()
-	req := httptest.NewRequest(http.MethodGet, "/restricted", nil)
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	rec := httptest.NewRecorder()
-	c := testServer.NewContext(req, rec)
-	// Assertions for unauthorized request
-	assert.Error(t, getJwtMiddleware()(testApp.restricted)(c))
-	// Setup register
+func TestUserUpdate(t *testing.T) {
 	testUserRequest := UserRequest{
 		Phone:    random.New().String(5, "1234567890"),
+		Email:    "test_email",
 		Password: "test_password",
 	}
 	testRequest, err := json.Marshal(testUserRequest)
 	assert.NoError(t, err)
+	testServer := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/user/update",
+		strings.NewReader(string(testRequest)))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := testServer.NewContext(req, rec)
+	// Assertions for unauthorized request
+	assert.Error(t, authorizeRequest(testApp.updateUser)(c))
+	// Setup register
 	req = httptest.NewRequest(http.MethodPost, "/register",
 		strings.NewReader(string(testRequest)))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec = httptest.NewRecorder()
 	c = testServer.NewContext(req, rec)
 	// Assertions for register
+	var testUser *models.User
 	if assert.NoError(t, testApp.register(c)) {
 		assert.Equal(t, http.StatusCreated, rec.Code)
-		testUser := new(models.User)
+		testUser = new(models.User)
 		err = json.Unmarshal(rec.Body.Bytes(), testUser)
 		assert.NoError(t, err)
 		assert.Equal(t, testUserRequest.Phone, testUser.Phone)
@@ -154,14 +159,29 @@ func TestRestricted(t *testing.T) {
 		assert.NoError(t, json.Unmarshal(rec.Body.Bytes(), &authResponse))
 	}
 	// Setup restricted
-	req = httptest.NewRequest(http.MethodGet, "/restricted", nil)
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	testUserRequest = UserRequest{
+		Id:       &testUser.Id,
+		Phone:    random.New().String(5, "1234567890"),
+		Email:    "new_test_email",
+		Password: "new_test_password",
+	}
+	testRequest, err = json.Marshal(testUserRequest)
+	assert.NoError(t, err)
+	req = httptest.NewRequest(http.MethodGet, "/user/update",
+		strings.NewReader(string(testRequest)))
 	req.Header.Set(echo.HeaderAuthorization, "Bearer "+authResponse.Token)
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec = httptest.NewRecorder()
 	c = testServer.NewContext(req, rec)
-	// Assertions for authorized request
-	if assert.NoError(t, getJwtMiddleware()(testApp.restricted)(c)) {
+	// Assertions for update user request
+	if assert.NoError(t, authorizeRequest(testApp.updateUser)(c)) {
 		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Contains(t, rec.Body.String(), testUserRequest.Phone)
+		updatedUser := new(models.User)
+		err = json.Unmarshal(rec.Body.Bytes(), updatedUser)
+		assert.NoError(t, err)
+		assert.Equal(t, *testUserRequest.Id, updatedUser.Id)
+		assert.Equal(t, testUserRequest.Phone, updatedUser.Phone)
+		assert.Equal(t, testUserRequest.Email, updatedUser.Email)
+		assert.NotNil(t, testUser.WhenUpdated)
 	}
 }
