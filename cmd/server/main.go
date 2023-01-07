@@ -11,7 +11,6 @@ func main() {
 	pgdb, err := db.StartDB()
 	if err != nil {
 		log.Fatalf("error: %v", err)
-
 	}
 	// run http server
 	api.StartAPI(pgdb)
