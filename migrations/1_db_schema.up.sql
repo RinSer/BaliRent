@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS properties (
     price INTEGER NOT NULL,
     property_type SMALLINT NOT NULL,
     for_sell BOOLEAN DEFAULT FALSE,
+    is_deleted BOOLEAN DEFAULT FALSE,
     when_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     when_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -33,6 +34,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     property_id BIGINT REFERENCES properties(id),
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
+    is_deleted BOOLEAN DEFAULT FALSE,
     when_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     when_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

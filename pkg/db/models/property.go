@@ -30,21 +30,23 @@ type Property struct {
 }
 
 func AddProperty(db *pg.DB, req *Property) (*Property, error) {
-	property := &Property{}
+	_, err := db.Model(req).Insert()
+	if err != nil {
+		return nil, err
+	}
 
-	_, err := db.Model(property).Insert()
-
-	return property, err
+	return GetProperty(db, req.Id)
 }
 
 func UpdateProperty(db *pg.DB, req *Property) (*Property, error) {
-	property := &Property{}
+	_, err := db.Model(req).
+		WherePK().
+		Update()
+	if err != nil {
+		return nil, err
+	}
 
-	err := db.Model(property).
-		Where("id = ?", req.Id).
-		Select()
-
-	return property, err
+	return GetProperty(db, req.Id)
 }
 
 func GetProperty(db *pg.DB, propertyId int64) (*Property, error) {
@@ -58,9 +60,9 @@ func GetProperty(db *pg.DB, propertyId int64) (*Property, error) {
 }
 
 func GetProperties(db *pg.DB, ownerId int64) ([]*Property, error) {
-	properties := []*Property{}
+	properties := make([]*Property, 0)
 
-	err := db.Model(properties).
+	err := db.Model(&properties).
 		Where("owner_id = ?", ownerId).
 		Select()
 

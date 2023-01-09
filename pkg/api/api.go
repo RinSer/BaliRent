@@ -4,6 +4,7 @@ import (
 	"bali-rent/pkg/db/models"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/go-pg/pg/v10"
@@ -52,6 +53,11 @@ func StartAPI(pgdb *pg.DB) {
 	}
 	r.Use(echojwt.WithConfig(config))
 	r.POST("/update", a.updateUser)
+	// Property REST
+	p := r.Group("/property")
+	p.GET("", a.getProperties)
+	p.POST("", a.createProperty)
+	p.PUT("", a.updateProperty)
 	e.Logger.Fatal(e.Start(":" + os.Getenv("PORT")))
 }
 
@@ -136,4 +142,68 @@ func (a *app) updateUser(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, user)
+}
+
+func (a *app) getProperties(c echo.Context) error {
+	propertyId := c.QueryParam("id")
+	if propertyId != "" {
+		id, err := strconv.ParseInt(propertyId, 10, 64)
+		if err != nil {
+			return echo.ErrBadRequest
+		}
+		property, err := models.GetProperty(a.db, id)
+		if err != nil {
+			return echo.ErrBadRequest
+		}
+		return c.JSON(http.StatusOK, property)
+	} else {
+		ownerId := c.QueryParam("ownerId")
+		id, err := strconv.ParseInt(ownerId, 10, 64)
+		if err != nil {
+			return echo.ErrBadRequest
+		}
+		properties, err := models.GetProperties(a.db, id)
+		if err != nil {
+			return echo.ErrBadRequest
+		}
+		return c.JSON(http.StatusOK, properties)
+	}
+}
+
+func (a *app) createProperty(c echo.Context) error {
+	authData := c.Get("user").(*jwt.Token)
+	claims := authData.Claims.(*jwtCustomClaims)
+
+	request := new(models.Property)
+	c.Bind(request)
+
+	if request.OwnerId != claims.Id {
+		return echo.ErrUnauthorized
+	}
+
+	property, err := models.AddProperty(a.db, request)
+	if err != nil || property == nil {
+		return echo.ErrBadRequest
+	}
+
+	return c.JSON(http.StatusCreated, property)
+}
+
+func (a *app) updateProperty(c echo.Context) error {
+	authData := c.Get("user").(*jwt.Token)
+	claims := authData.Claims.(*jwtCustomClaims)
+
+	request := new(models.Property)
+	c.Bind(request)
+
+	if request.OwnerId != claims.Id {
+		return echo.ErrUnauthorized
+	}
+
+	property, err := models.UpdateProperty(a.db, request)
+	if err != nil || property == nil {
+		return echo.ErrBadRequest
+	}
+
+	return c.JSON(http.StatusOK, property)
 }
