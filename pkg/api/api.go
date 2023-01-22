@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bali-rent/pkg/auth"
 	"bali-rent/pkg/db/models"
 	"net/http"
 	"os"
@@ -16,19 +17,6 @@ import (
 
 type app struct {
 	db *pg.DB
-}
-
-// jwtCustomClaims are custom claims extending default ones.
-// See https://github.com/golang-jwt/jwt for more examples
-type jwtCustomClaims struct {
-	Id    int64  `json:"id"`
-	Phone string `json:"phone"`
-	Admin bool   `json:"admin"`
-	jwt.RegisteredClaims
-}
-
-func getJwtSecret() string {
-	return os.Getenv("JWT_SECRET")
 }
 
 func StartAPI(pgdb *pg.DB) {
@@ -47,9 +35,9 @@ func StartAPI(pgdb *pg.DB) {
 	// Configure middleware with the custom claims type
 	config := echojwt.Config{
 		NewClaimsFunc: func(c echo.Context) jwt.Claims {
-			return new(jwtCustomClaims)
+			return new(auth.JwtCustomClaims)
 		},
-		SigningKey: []byte(getJwtSecret()),
+		SigningKey: []byte(auth.GetJwtSecret()),
 	}
 	r.Use(echojwt.WithConfig(config))
 	r.POST("/update", a.updateUser)
@@ -92,11 +80,11 @@ func (a *app) login(c echo.Context) error {
 	}
 
 	// Set custom claims
-	claims := &jwtCustomClaims{
-		user.Id,
-		user.Phone,
-		false,
-		jwt.RegisteredClaims{
+	claims := &auth.JwtCustomClaims{
+		Id:    user.Id,
+		Phone: user.Phone,
+		Admin: false,
+		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 72)),
 		},
 	}
@@ -105,7 +93,7 @@ func (a *app) login(c echo.Context) error {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
 	// Generate encoded token and send it as response.
-	t, err := token.SignedString([]byte(getJwtSecret()))
+	t, err := token.SignedString([]byte(auth.GetJwtSecret()))
 	if err != nil {
 		return err
 	}
@@ -117,7 +105,7 @@ func (a *app) login(c echo.Context) error {
 
 func (a *app) updateUser(c echo.Context) error {
 	authData := c.Get("user").(*jwt.Token)
-	claims := authData.Claims.(*jwtCustomClaims)
+	claims := authData.Claims.(*auth.JwtCustomClaims)
 
 	request := new(UserRequest)
 	c.Bind(request)
@@ -224,7 +212,7 @@ func (a *app) getProperties(c echo.Context) error {
 
 func (a *app) createProperty(c echo.Context) error {
 	authData := c.Get("user").(*jwt.Token)
-	claims := authData.Claims.(*jwtCustomClaims)
+	claims := authData.Claims.(*auth.JwtCustomClaims)
 
 	request := new(models.Property)
 	c.Bind(request)
@@ -243,7 +231,7 @@ func (a *app) createProperty(c echo.Context) error {
 
 func (a *app) updateProperty(c echo.Context) error {
 	authData := c.Get("user").(*jwt.Token)
-	claims := authData.Claims.(*jwtCustomClaims)
+	claims := authData.Claims.(*auth.JwtCustomClaims)
 
 	request := new(models.Property)
 	c.Bind(request)

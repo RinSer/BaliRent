@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bali-rent/pkg/auth"
 	"bali-rent/pkg/db"
 	"bali-rent/pkg/db/models"
 	"encoding/json"
@@ -25,9 +26,9 @@ var testApp app
 func authorizeRequest(next echo.HandlerFunc) echo.HandlerFunc {
 	return echojwt.WithConfig(echojwt.Config{
 		NewClaimsFunc: func(c echo.Context) jwt.Claims {
-			return new(jwtCustomClaims)
+			return new(auth.JwtCustomClaims)
 		},
-		SigningKey: []byte(getJwtSecret()),
+		SigningKey: []byte(auth.GetJwtSecret()),
 	})(next)
 }
 
