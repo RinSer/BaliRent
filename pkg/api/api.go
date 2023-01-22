@@ -158,15 +158,67 @@ func (a *app) getProperties(c echo.Context) error {
 		return c.JSON(http.StatusOK, property)
 	} else {
 		ownerId := c.QueryParam("ownerId")
-		id, err := strconv.ParseInt(ownerId, 10, 64)
-		if err != nil {
-			return echo.ErrBadRequest
+		if ownerId != "" {
+			id, err := strconv.ParseInt(ownerId, 10, 64)
+			if err != nil {
+				return echo.ErrBadRequest
+			}
+			properties, err := models.GetOwnersProperties(a.db, id)
+			if err != nil {
+				return echo.ErrBadRequest
+			}
+			return c.JSON(http.StatusOK, properties)
+		} else {
+			fromStr := c.QueryParam("from")
+			countStr := c.QueryParam("count")
+			if fromStr != "" && countStr != "" {
+				from, err := strconv.Atoi(fromStr)
+				if err != nil {
+					return echo.ErrBadRequest
+				}
+				count, err := strconv.Atoi(countStr)
+				if err != nil {
+					return echo.ErrBadRequest
+				}
+				properties, err := models.GetPagedProperties(a.db, from, count)
+				if err != nil {
+					return echo.ErrBadRequest
+				}
+				return c.JSON(http.StatusOK, properties)
+			} else {
+				latStartStr := c.QueryParam("latStart")
+				latEndStr := c.QueryParam("latEnd")
+				longStartStr := c.QueryParam("longStart")
+				longEndStr := c.QueryParam("longEnd")
+				if latStartStr != "" && latEndStr != "" &&
+					longStartStr != "" && longEndStr != "" {
+					latStart, err := strconv.ParseFloat(latStartStr, 64)
+					if err != nil {
+						return echo.ErrBadRequest
+					}
+					latEnd, err := strconv.ParseFloat(latEndStr, 64)
+					if err != nil {
+						return echo.ErrBadRequest
+					}
+					longStart, err := strconv.ParseFloat(longStartStr, 64)
+					if err != nil {
+						return echo.ErrBadRequest
+					}
+					longEnd, err := strconv.ParseFloat(longEndStr, 64)
+					if err != nil {
+						return echo.ErrBadRequest
+					}
+					properties, err := models.GetMapProperties(
+						a.db, latStart, latEnd, longStart, longEnd)
+					if err != nil {
+						return echo.ErrBadRequest
+					}
+					return c.JSON(http.StatusOK, properties)
+				} else {
+					return echo.ErrBadRequest
+				}
+			}
 		}
-		properties, err := models.GetProperties(a.db, id)
-		if err != nil {
-			return echo.ErrBadRequest
-		}
-		return c.JSON(http.StatusOK, properties)
 	}
 }
 

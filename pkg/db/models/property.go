@@ -59,11 +59,37 @@ func GetProperty(db *pg.DB, propertyId int64) (*Property, error) {
 	return property, err
 }
 
-func GetProperties(db *pg.DB, ownerId int64) ([]*Property, error) {
+func GetOwnersProperties(db *pg.DB, ownerId int64) ([]*Property, error) {
 	properties := make([]*Property, 0)
 
 	err := db.Model(&properties).
 		Where("owner_id = ?", ownerId).
+		Select()
+
+	return properties, err
+}
+
+func GetPagedProperties(db *pg.DB, from int, count int) ([]*Property, error) {
+	properties := make([]*Property, 0)
+
+	err := db.Model(&properties).
+		Offset(from).
+		Limit(count).
+		Select()
+
+	return properties, err
+}
+
+func GetMapProperties(db *pg.DB,
+	latStart float64, latEnd float64,
+	longStart float64, longEnd float64) ([]*Property, error) {
+	properties := make([]*Property, 0)
+
+	err := db.Model(&properties).
+		Where("latitude >= ?", latStart).
+		Where("latitude <= ?", latEnd).
+		Where("longitude >= ?", longStart).
+		Where("longitude <= ?", longEnd).
 		Select()
 
 	return properties, err
