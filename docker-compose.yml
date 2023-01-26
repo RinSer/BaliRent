@@ -19,6 +19,7 @@ services:
     environment:
       - PORT=1234
       - FILES_DIR=/srv/images
+      - JWT_SECRET=secret-new
     volumes:
       - ./images:/srv/images
 
