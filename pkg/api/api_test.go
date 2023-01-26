@@ -5,6 +5,7 @@ import (
 	"bali-rent/pkg/db"
 	"bali-rent/pkg/db/models"
 	"encoding/json"
+	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
@@ -289,7 +290,7 @@ func TestProperty(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, propertyData.Price, testProperty.Price)
 	}
-	// Assertions for properties get
+	// Assertions for properties get by owner
 	req = httptest.NewRequest(http.MethodGet, "/property?ownerId="+strconv.FormatInt(testUser.Id, 10), nil)
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	req.Header.Set(echo.HeaderAuthorization, "Bearer "+authResponse.Token)
@@ -302,5 +303,40 @@ func TestProperty(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, testProperties)
 		assert.Equal(t, testProperties[0].Price, testProperty.Price)
+	}
+	// Assertions for properties get paged
+	count := 10
+	req = httptest.NewRequest(http.MethodGet, "/property?from=0&count="+strconv.Itoa(count), nil)
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, "Bearer "+authResponse.Token)
+	rec = httptest.NewRecorder()
+	c = testServer.NewContext(req, rec)
+	if assert.NoError(t, authorizeRequest(testApp.getProperties)(c)) {
+		assert.Equal(t, http.StatusOK, rec.Code)
+		testProperties := make([]models.Property, 0)
+		err = json.Unmarshal(rec.Body.Bytes(), &testProperties)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, testProperties)
+		assert.GreaterOrEqual(t, count, len(testProperties))
+	}
+	// Assertions for filtered by location position
+	latStart := testProperty.Latitude - 0.0000001
+	latEnd := testProperty.Latitude + 0.0000001
+	longStart := testProperty.Longitude - 0.0000001
+	longEnd := testProperty.Longitude + 0.0000001
+	req = httptest.NewRequest(http.MethodGet,
+		fmt.Sprintf("/property?latStart=%.8f&latEnd=%.8f&longStart=%.8f&longEnd=%.8f",
+			latStart, latEnd, longStart, longEnd), nil)
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	req.Header.Set(echo.HeaderAuthorization, "Bearer "+authResponse.Token)
+	rec = httptest.NewRecorder()
+	c = testServer.NewContext(req, rec)
+	if assert.NoError(t, authorizeRequest(testApp.getProperties)(c)) {
+		assert.Equal(t, http.StatusOK, rec.Code)
+		testProperties := make([]models.Property, 0)
+		err = json.Unmarshal(rec.Body.Bytes(), &testProperties)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, testProperties)
+		assert.Contains(t, testProperties, *testProperty)
 	}
 }
