@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 var filesDir string
@@ -20,10 +21,13 @@ func RunFileServer() {
 	filesDir = os.Getenv("FILES_DIR")
 
 	e := echo.New()
+	e.Use(middleware.Recover())
+	e.Use(middleware.Logger())
+	gr := e.Group("/files")
 	// serve all files
-	e.Static("/images", filesDir)
+	gr.Static("/images", filesDir)
 	// upload files
-	r := e.Group("/upload")
+	r := gr.Group("/upload")
 	// Configure middleware with the custom claims type
 	config := echojwt.Config{
 		NewClaimsFunc: func(c echo.Context) jwt.Claims {

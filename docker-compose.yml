@@ -1,8 +1,20 @@
 version: '3.8'
 
 services:
+  nginx:
+    image: nginx:latest
+    ports: 
+      - 8080:80
+    volumes:
+      - ./nginx:/etc/nginx/conf.d/
+      - ./static:/srv/static
+      - ./nginxlogs:/var/log/nginx
+    depends_on:
+      - api
+      - fileserver
+  
   db:
-    image: postgres
+    image: postgres:latest
     restart: always
     ports:
       - 5432:5432
@@ -13,8 +25,6 @@ services:
     build:
       context: .
       dockerfile: fileserver.Dockerfile
-    ports:
-      - 4321:1234
     restart: on-failure:10
     environment:
       - PORT=1234
@@ -27,8 +37,6 @@ services:
     build:
       context: .
       dockerfile: api.Dockerfile
-    ports:
-      - 8080:1234
     restart: on-failure:10
     environment:
       - PORT=1234

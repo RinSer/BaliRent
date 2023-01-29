@@ -26,12 +26,11 @@ func StartAPI(pgdb *pg.DB) {
 	// Middleware
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
+	gr := e.Group("/api")
 	// Register route
-	e.POST("/register", a.register)
+	gr.POST("/register", a.register)
 	// Login route
-	e.POST("/login", a.login)
-	// Restricted group
-	r := e.Group("/user")
+	gr.POST("/login", a.login)
 	// Configure middleware with the custom claims type
 	config := echojwt.Config{
 		NewClaimsFunc: func(c echo.Context) jwt.Claims {
@@ -39,7 +38,8 @@ func StartAPI(pgdb *pg.DB) {
 		},
 		SigningKey: []byte(auth.GetJwtSecret()),
 	}
-	r.Use(echojwt.WithConfig(config))
+	// Restricted group
+	r := gr.Group("/user", echojwt.WithConfig(config))
 	r.POST("/update", a.updateUser)
 	// Property REST
 	p := r.Group("/property")
