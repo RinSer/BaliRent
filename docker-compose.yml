@@ -7,7 +7,7 @@ services:
       - 8080:80
     volumes:
       - ./nginx:/etc/nginx/conf.d/
-      - ./static:/srv/static
+      - ./ui/build:/srv/static
       - ./nginxlogs:/var/log/nginx
     depends_on:
       - api
