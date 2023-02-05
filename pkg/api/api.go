@@ -26,6 +26,7 @@ func StartAPI(pgdb *pg.DB) {
 	// Middleware
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
+	e.Use(middleware.CORS())
 	gr := e.Group("/api")
 	// Register route
 	gr.POST("/register", a.register)

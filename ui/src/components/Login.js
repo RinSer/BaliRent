@@ -13,6 +13,7 @@ import Typography from '@mui/material/Typography';
 import Container from '@mui/material/Container';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import Copyright from './Copyright';
+import * as api from '../api/calls';
 
 const theme = createTheme();
 
@@ -39,20 +40,32 @@ export default class Clock extends React.Component {
                 <LockOutlinedIcon />
               </Avatar>
               <Typography component="h1" variant="h5">
-                Sign in
+                {this.state.signUp ? 'Sign Up' : 'Sign In'}
               </Typography>
               <Box component="form" onSubmit={this.handleSubmit} noValidate sx={{ mt: 1 }}>
-                <TextField
+              <TextField
+                  margin="normal"
+                  required
+                  fullWidth
+                  id="phone"
+                  type="tel"
+                  label="Phone Number"
+                  name="phone"
+                  autoComplete="phone"
+                  autoFocus
+                />
+                {this.state.signUp ? <TextField
                   margin="normal"
                   required
                   fullWidth
                   id="email"
+                  type="email"
                   label="Email Address"
                   name="email"
                   autoComplete="email"
-                  autoFocus
-                />
+                /> : null}
                 <TextField
+                  onChange={this.checkPasswordsMatch}
                   margin="normal"
                   required
                   fullWidth
@@ -63,19 +76,21 @@ export default class Clock extends React.Component {
                   autoComplete="current-password"
                 />
                 {this.state.signUp ? <TextField
+                  onChange={this.checkPasswordsMatch}
                   margin="normal"
                   required
                   fullWidth
                   name="repeat"
                   label="Repeat Password"
                   type="password"
-                  id="password"
+                  id="repeat"
                 /> : null}
                 {/* <FormControlLabel
                   control={<Checkbox value="remember" color="primary" />}
                   label="Remember me"
                 /> */}
                 <Button
+                  id="submit"
                   type="submit"
                   fullWidth
                   variant="contained"
@@ -108,17 +123,54 @@ export default class Clock extends React.Component {
   toggleForm = (event) => {
     event.preventDefault();
     this.setState({
-        ...this.state,
-        signUp: !this.state.signUp
+      ...this.state,
+      signUp: !this.state.signUp
     });
   };
 
-  handleSubmit = (event) => {
+  checkPasswordsMatch = (event) => {
+    event.preventDefault();
+    // const data = new FormData(event.currentTarget.form);
+    // if (this.state.signUp) {
+    //   const password = data.get('password');
+    //   const repeat = data.get('repeat');
+    //   if (password !== repeat) {
+    //     document.getElementById("submit").setAttribute("disabled", "true");
+    //   } else {
+    //     document.getElementById("submit").setAttribute("disabled", "false");
+    //   }
+    // }
+  };
+
+  handleSubmit = async (event) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    console.log({
-      email: data.get('email'),
-      password: data.get('password'),
-    });
+    if (this.state.signUp) {
+      const phone = data.get('phone');
+      const email = data.get('email');
+      const password = data.get('password');
+      try {
+        const response = await api.register(phone, email, password);
+        if (!response.id) {
+          alert("Could not create new account!");
+          return;
+        }
+      } catch(err) {
+        alert("Could not create new account!");
+        console.log(err);
+        return;
+      }
+      this.setState({
+        ...this.state,
+        signUp: !this.state.signUp
+      });
+    } else {
+      const phone = data.get('phone');
+      const password = data.get('password');
+      const response = await api.login(phone, password);
+      localStorage.setItem('user', response);
+      // TODO: remove !!!
+      alert(response.token);
+    }
   };
 }

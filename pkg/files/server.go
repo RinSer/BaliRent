@@ -23,6 +23,7 @@ func RunFileServer() {
 	e := echo.New()
 	e.Use(middleware.Recover())
 	e.Use(middleware.Logger())
+	e.Use(middleware.CORS())
 	gr := e.Group("/files")
 	// serve all files
 	gr.Static("/images", filesDir)
