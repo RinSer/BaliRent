@@ -17,7 +17,7 @@ import * as api from '../api/calls';
 
 const theme = createTheme();
 
-export default class Clock extends React.Component {
+export default class Login extends React.Component {
   constructor(props) {
     super(props);
     this.state = {signUp: false};
