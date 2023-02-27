@@ -1,4 +1,4 @@
-FROM golang
+FROM golang:alpine AS build-env
 
 RUN mkdir /server
 
@@ -8,4 +8,8 @@ WORKDIR /server
 
 RUN go build -o main ./cmd/files/main.go
 
-CMD [ "/server/main" ]
+FROM alpine:latest
+
+COPY --from=build-env /server/main .
+
+CMD ["./main"]
