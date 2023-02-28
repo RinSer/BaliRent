@@ -41,8 +41,9 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		log.Panicf("error: %v", err)
 	}
+	
 	// create test app
-	testApp = app{pgdb}
+	testApp = app{pgdb,nil}
 	os.Exit(m.Run())
 }
 

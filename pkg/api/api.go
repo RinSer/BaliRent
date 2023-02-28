@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-pg/pg/v10"
+	"github.com/redis/go-redis/v9"
 	"github.com/golang-jwt/jwt/v4"
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
@@ -17,11 +18,12 @@ import (
 
 type app struct {
 	db *pg.DB
+	redis *redis.Client
 }
 
-func StartAPI(pgdb *pg.DB) {
+func StartAPI(pgdb *pg.DB, redis *redis.Client) {
 	// create new app
-	a := app{pgdb}
+	a := app{pgdb,redis}
 	e := echo.New()
 	// Middleware
 	e.Use(middleware.Logger())
@@ -68,6 +70,8 @@ func (a *app) register(c echo.Context) error {
 
 	return c.JSON(http.StatusCreated, user)
 }
+
+
 
 // e.POST("/login", login)
 func (a *app) login(c echo.Context) error {

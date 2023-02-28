@@ -12,7 +12,25 @@ services:
     depends_on:
       - api
       - fileserver
-  
+  #dev mail server       
+  mail:
+    image: namshi/smtp:latest
+    ports:
+      - '25:25'
+      - '587:587'
+    environment:
+      - 'SMTP_USER=smtp_user'
+      - 'SMTP_PASSWORD=smtp_password'
+      - 'SMTP_HOSTNAME=rent'
+      - 'SMTP_FROM_ADDRESS=admin@bali-rent.com'
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+
   db:
     image: postgres:latest
     restart: always
@@ -42,5 +60,9 @@ services:
       - PORT=1234
       - DATABASE_URL=db
       - JWT_SECRET=secret-new
+      - MAIL_SERVER=mail
+      - REDIS_URL=redis
     depends_on:
       - db
+      - mail
+      - redis
