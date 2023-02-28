@@ -21,7 +21,7 @@ type Property struct {
 	Longitude    float64      `json:"longitude"`
 	Photos       []string     `json:"photos"`
 	Description  string       `json:"description"`
-	Price        int32        `json:"price"`
+	Price        float32      `json:"price"`
 	PropertyType PropertyType `json:"propertyType"`
 	ForSell      bool         `json:"forSell"`
 	IsDeleted    bool         `json:"isDeleted"`
