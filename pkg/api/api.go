@@ -3,27 +3,32 @@ package api
 import (
 	"bali-rent/pkg/auth"
 	"bali-rent/pkg/db/models"
+	"bali-rent/pkg/mail"
+	"bali-rent/pkg/sms"
+	"encoding/base64"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/go-pg/pg/v10"
-	"github.com/redis/go-redis/v9"
 	"github.com/golang-jwt/jwt/v4"
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/redis/go-redis/v9"
 )
 
 type app struct {
 	db *pg.DB
 	redis *redis.Client
+	mail *mail.Mail
+	sms sms.SmsSender
 }
 
-func StartAPI(pgdb *pg.DB, redis *redis.Client) {
+func StartAPI(pgdb *pg.DB, redis *redis.Client,mail *mail.Mail, sms sms.SmsSender) {
 	// create new app
-	a := app{pgdb,redis}
+	a := app{pgdb,redis,mail,sms}
 	e := echo.New()
 	// Middleware
 	e.Use(middleware.Logger())
@@ -32,6 +37,15 @@ func StartAPI(pgdb *pg.DB, redis *redis.Client) {
 	gr := e.Group("/api")
 	// Register route
 	gr.POST("/register", a.register)
+	
+	restore := gr.Group("/restore")
+	restore.POST("/email/:email", a.restoreByEmail)
+	restore.POST("/sms/:phone", a.restoreBySms)
+
+	confirm := gr.Group("/confirm")
+	confirm.POST("/email/:email/:code", a.confirmByEmail)
+	confirm.POST("/sms/:phone/:code", a.confirmBySms)
+
 	// Login route
 	gr.POST("/login", a.login)
 	// Configure middleware with the custom claims type
@@ -68,7 +82,166 @@ func (a *app) register(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, err)
 	}
 
+	confirmation := models.NewConfirmation(user, a.redis, a.mail,a.sms)
+	
+	if user.Phone != "" {
+		err = confirmation.SendSms(c.Request().Context())
+	}  
+	if user.Email != "" {
+		err = confirmation.SendEmail(c.Request().Context())
+	} 
+
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, err)
+	} 
+
 	return c.JSON(http.StatusCreated, user)
+}
+
+func (a *app) restoreByEmail(c echo.Context) error {
+	encodedParam := c.Param("email")
+
+    decodedParam, err := base64.StdEncoding.DecodeString(encodedParam)
+    if err != nil {
+        return c.JSON(http.StatusBadRequest, err)
+    }
+
+	email := string(decodedParam)
+
+	user, err := models.GetUserByEmail(a.db,  email)
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, err)
+	}
+
+	if user == nil {
+		return c.JSON(http.StatusNotFound, "User not found")
+	}
+
+	confirmation := models.NewConfirmation(user, a.redis, a.mail,a.sms)
+
+	err = confirmation.SendEmail(c.Request().Context())
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, err)
+	} 
+
+	return c.JSON(http.StatusOK, "Email sent")
+
+}
+
+func (a *app) restoreBySms(c echo.Context) error {
+	encodedParam := c.Param("phone")
+
+    decodedParam, err := base64.StdEncoding.DecodeString(encodedParam)
+    if err != nil {
+        return c.JSON(http.StatusBadRequest, err)
+    }
+
+	phone := string(decodedParam)
+
+	user, err := models.GetUserByPhone(a.db,  phone)
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, err)
+	}
+
+	if user == nil {
+		return c.JSON(http.StatusNotFound, "User not found")
+	}
+
+	confirmation := models.NewConfirmation(user, a.redis, a.mail,a.sms)
+
+	err = confirmation.SendSms(c.Request().Context())
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, err)
+	} 
+
+	return c.JSON(http.StatusOK, "Sms sent")
+}
+
+func (a *app) confirmByEmail(c echo.Context) error {
+	encodedParam := c.Param("email")
+
+    decodedParam, err := base64.StdEncoding.DecodeString(encodedParam)
+    if err != nil {
+        return c.JSON(http.StatusBadRequest, err)
+    }
+
+	email := string(decodedParam)
+
+	code := c.Param("code")
+
+	user, err := models.GetUserByEmail(a.db,  email)
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, err)
+	}
+
+	if user == nil {
+		return c.JSON(http.StatusNotFound, "User not found")
+	}
+
+	confirmation := models.NewConfirmation(user, a.redis, a.mail,a.sms)
+
+	err = confirmation.CheckEmail(c.Request().Context(),code)
+
+	if err != nil {
+		return c.JSON(http.StatusForbidden, err)
+	}
+
+	t, err := user.GetToken()
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, err)
+	}
+
+	return c.JSON(http.StatusOK, echo.Map{
+		"token": *t,
+	})
+}
+
+func (a *app) confirmBySms(c echo.Context) error {
+
+	encodedParam := c.Param("phone")
+
+    decodedParam, err := base64.StdEncoding.DecodeString(encodedParam)
+    if err != nil {
+        return c.JSON(http.StatusBadRequest, err)
+    }
+
+	phone := string(decodedParam)
+
+	code := c.Param("code")
+
+	user, err := models.GetUserByPhone(a.db,  phone)
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, err)
+	}
+
+	if user == nil {
+		return c.JSON(http.StatusNotFound, "User not found")
+	}
+
+	confirmation := models.NewConfirmation(user, a.redis, a.mail,a.sms)
+
+	err = confirmation.CheckSms(c.Request().Context(),code)
+
+	if err != nil {
+		return c.JSON(http.StatusForbidden, err)
+	}
+
+	t, err := user.GetToken()
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, err)
+	}
+
+	return c.JSON(http.StatusOK, echo.Map{
+		"token": *t,
+	})
 }
 
 
@@ -84,29 +257,17 @@ func (a *app) login(c echo.Context) error {
 		return echo.ErrUnauthorized
 	}
 
-	// Set custom claims
-	claims := &auth.JwtCustomClaims{
-		Id:    user.Id,
-		Phone: user.Phone,
-		Admin: false,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 72)),
-		},
-	}
+	t, err := user.GetToken()
 
-	// Create token with claims
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	// Generate encoded token and send it as response.
-	t, err := token.SignedString([]byte(auth.GetJwtSecret()))
 	if err != nil {
-		return err
+		return c.JSON(http.StatusInternalServerError, err)
 	}
 
 	return c.JSON(http.StatusOK, echo.Map{
-		"token": t,
+		"token": *t,
 	})
 }
+
 
 func (a *app) updateUser(c echo.Context) error {
 	authData := c.Get("user").(*jwt.Token)

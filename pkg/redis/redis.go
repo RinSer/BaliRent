@@ -20,6 +20,7 @@ func Connect() (*redis.Client,error) {
     // Create a Redis Options object
     options := &redis.Options{
         Addr: u.Host,
+        DB: 0,
     }
     
     // Set the password if provided
