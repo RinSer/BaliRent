@@ -1,9 +1,13 @@
-package api
+package api 
 
 import (
 	"bali-rent/pkg/auth"
 	"bali-rent/pkg/db"
 	"bali-rent/pkg/db/models"
+	"bali-rent/pkg/mail"
+	"bali-rent/pkg/redis"
+	"bali-rent/pkg/sms"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -19,10 +23,12 @@ import (
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/gommon/random"
+	rds "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 )
 
 var testApp app
+var r *rds.Client
 
 func authorizeRequest(next echo.HandlerFunc) echo.HandlerFunc {
 	return echojwt.WithConfig(echojwt.Config{
@@ -36,13 +42,27 @@ func authorizeRequest(next echo.HandlerFunc) echo.HandlerFunc {
 func TestMain(m *testing.M) {
 	os.Setenv("DATABASE_URL", "localhost")
 	os.Setenv("JWT_SECRET", "test-secret")
+	os.Setenv("MAIL_FROM", "admin@bali-rent.com")
+	os.Setenv("MAIL_PASSWORD", "")
+	os.Setenv("MAIL_SERVER", "localhost:1025")
+	os.Setenv("REDIS_URL", "localhost:6379")
+
 	// connect the db
 	pgdb, err := db.StartDB()
+
 	if err != nil {
 		log.Panicf("error: %v", err)
 	}
+
+	r, err = redis.Connect()
+	mail := mail.NewMail()
+	sms := sms.NewSmsMock(r)
+	if err != nil {
+		log.Panicf("error: %v", err)
+	}
+
 	// create test app
-	testApp = app{pgdb}
+	testApp = app{pgdb, r, mail, sms}
 	os.Exit(m.Run())
 }
 
@@ -68,6 +88,113 @@ func TestRegister(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, testUserRequest.Phone, testUser.Phone)
 		assert.NotNil(t, testUser.Id)
+
+		v, err := r.Get(context.Background(), fmt.Sprintf("email:%s", models.EncodeBase64(testUserRequest.Email))).Result()
+		assert.NoError(t, err)
+		assert.NotEmpty(t, v)
+
+		v, err = r.Get(context.Background(), fmt.Sprintf("sms:%s", models.EncodeBase64(testUserRequest.Phone))).Result()
+		assert.NoError(t, err)
+		assert.NotEmpty(t, v)
+	}
+}
+
+func TestConfirmEmail(t *testing.T) {
+	testServer := echo.New()
+	testUserRequest := UserRequest{
+		Phone:    random.New().String(25, "1234567890"),
+		Email:    random.New().String(25, "1234567890"),
+		Password: "test_password",
+	}
+	testRequest, err := json.Marshal(testUserRequest)
+	assert.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/register",
+		strings.NewReader(string(testRequest)))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := testServer.NewContext(req, rec)
+
+	if !assert.NoError(t, testApp.register(c)) {
+		return
+	}
+
+	encoded := models.EncodeBase64(testUserRequest.Email)
+	req = httptest.NewRequest(http.MethodPost, "/api/restore", nil)
+
+	rec = httptest.NewRecorder()
+	c = testServer.NewContext(req, rec)
+	c.SetPath("/email/:email")
+	c.SetParamNames("email")
+	c.SetParamValues(encoded)
+
+	if !assert.NoError(t, testApp.restoreByEmail(c)) {
+		return
+	}
+
+	code, err := r.Get(context.Background(), fmt.Sprintf("email:%s", models.EncodeBase64(testUserRequest.Email))).Result()
+	assert.NoError(t, err)
+
+	req = httptest.NewRequest(http.MethodPost, "/api/confirm", nil)
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec = httptest.NewRecorder()
+	c = testServer.NewContext(req, rec)
+	c.SetPath("/email/:email/:code")
+	c.SetParamNames("email", "code")
+	c.SetParamValues(encoded, code)
+
+	if assert.NoError(t, testApp.confirmByEmail(c)) {
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Contains(t, rec.Body.String(), "token")
+	}
+}
+
+func TestConfirmPhone(t *testing.T) {
+
+	testServer := echo.New()
+	testUserRequest := UserRequest{
+		Phone:    random.New().String(25, "1234567890"),
+		Email:    random.New().String(25, "1234567890"),
+		Password: "test_password",
+	}
+	testRequest, err := json.Marshal(testUserRequest)
+	assert.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/register",
+		strings.NewReader(string(testRequest)))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := testServer.NewContext(req, rec)
+
+	if !assert.NoError(t, testApp.register(c)) {
+		return
+	}
+
+	encoded := models.EncodeBase64(testUserRequest.Phone)
+	req = httptest.NewRequest(http.MethodPost, "/api/restore", nil)
+
+	rec = httptest.NewRecorder()
+	c = testServer.NewContext(req, rec)
+	c.SetPath("/sms/:phone")
+	c.SetParamNames("phone")
+	c.SetParamValues(encoded)
+
+	if !assert.NoError(t, testApp.restoreBySms(c)) {
+		return
+	}
+
+	code, err := r.Get(context.Background(), fmt.Sprintf("sms:%s", models.EncodeBase64(testUserRequest.Phone))).Result()
+	assert.NoError(t, err)
+
+	req = httptest.NewRequest(http.MethodPost, "/api/confirm", nil)
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec = httptest.NewRecorder()
+	c = testServer.NewContext(req, rec)
+	c.SetPath("/sms/:phone/:code")
+	c.SetParamNames("phone", "code")
+	c.SetParamValues(encoded, code)
+
+	if assert.NoError(t, testApp.confirmBySms(c)) {
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Contains(t, rec.Body.String(), "token")
 	}
 }
 

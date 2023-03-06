@@ -3,6 +3,7 @@ version: '3.8'
 services:
   nginx:
     image: nginx:latest
+    restart: always
     ports: 
       - 8080:80
     volumes:
@@ -12,7 +13,43 @@ services:
     depends_on:
       - api
       - fileserver
-  
+    
+#  mail:
+#    image: docker.io/mailserver/docker-mailserver:latest
+#    container_name: mailserver
+#    hostname: mail.bali-rent.com
+#    ports:
+#      - "25:25"
+#      - "587:587"
+#      - "465:465"
+#    volumes:
+#      - ./docker-data/dms/mail-data/:/var/mail/
+#      - ./docker-data/dms/mail-state/:/var/mail-state/
+#      - ./docker-data/dms/mail-logs/:/var/log/mail/
+#      - ./docker-data/dms/config/:/tmp/docker-mailserver/
+#      - /etc/localtime:/etc/localtime:ro
+#    environment:
+#      - ENABLE_FAIL2BAN=1
+#      - SSL_TYPE=letsencrypt
+#      - PERMIT_DOCKER=network
+#      - SPOOF_PROTECTION=0
+#    cap_add:
+#      - NET_ADMIN 
+
+  mail:
+    image: mailhog/mailhog
+    restart: always
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+
   db:
     image: postgres:latest
     restart: always
@@ -42,5 +79,11 @@ services:
       - PORT=1234
       - DATABASE_URL=db
       - JWT_SECRET=secret-new
+      - MAIL_SERVER=mail
+      - MAIL_FROM=admin@bali-rent.com
+      - MAIL_PASSWORD=smtp_password
+      - REDIS_URL=redis
     depends_on:
       - db
+      - mail
+      - redis
